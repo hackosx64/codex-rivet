@@ -1,0 +1,26 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "app_config.c"
+        "button.c"
+        "led_status.c"
+        "state_machine.c"
+        "uart_comm.c"
+        "config_storage.c"
+        "web_server.c"
+        "telemetry_log.c"
+    INCLUDE_DIRS "include"
+    REQUIRES
+        driver
+        esp_timer
+        esp_event
+        esp_system
+        esp_netif
+        esp_wifi
+        esp_http_server
+        nvs_flash
+        spi_flash
+        spiffs
+        cjson
+        led_strip
+)

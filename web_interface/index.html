@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>BLDC контроллер</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        button { margin: 4px; padding: 8px 16px; }
+        label { display: block; margin-top: 10px; }
+        input { margin-top: 4px; padding: 4px; }
+        .panel { border: 1px solid #ccc; padding: 16px; border-radius: 8px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Настройка привода BLDC</h1>
+    <p>Страница повторяет минимальный интерфейс, доступный на встроенном веб-сервере ESP32-S3.</p>
+
+    <div class="panel">
+        <h2>Управление</h2>
+        <button onclick="sendCommand('start_forward')">Старт вперёд</button>
+        <button onclick="sendCommand('start_reverse')">Старт назад</button>
+        <button onclick="sendCommand('reverse')">Принудительный реверс</button>
+        <button onclick="sendCommand('stop')">Стоп</button>
+    </div>
+
+    <div class="panel">
+        <h2>Состояние</h2>
+        <pre id="status">—</pre>
+    </div>
+
+    <div class="panel">
+        <h2>Параметры механики</h2>
+        <form onsubmit="saveConfig(event)">
+            <label>Максимальная скорость RPM
+                <input type="number" id="target_rpm">
+            </label>
+            <label>Время разгона (мс)
+                <input type="number" id="ramp_up_ms">
+            </label>
+            <label>Время торможения (мс)
+                <input type="number" id="ramp_down_ms">
+            </label>
+            <label>Ток нагрузки, А
+                <input type="number" step="0.1" id="high_load_current_a">
+            </label>
+            <label>Порог отрыва, А
+                <input type="number" step="0.1" id="low_load_current_a">
+            </label>
+            <label>Задержка после падения тока, мс
+                <input type="number" id="load_drop_delay_ms">
+            </label>
+            <label>Задержка перед повторным стартом, мс
+                <input type="number" id="settle_delay_ms">
+            </label>
+            <label>
+                <input type="checkbox" id="logging_enabled" onchange="toggleLogging(this)">
+                Запись CSV лога в SPIFFS
+            </label>
+            <button type="submit">Сохранить</button>
+        </form>
+        <p><a href="/api/log" target="_blank">Скачать лог-файл текущей сессии</a></p>
+    </div>
+
+    <script>
+        async function refresh() {
+            const resp = await fetch('/api/status');
+            const data = await resp.json();
+            document.getElementById('status').textContent = `Состояние: ${data.state}\n` +
+                `Wi-Fi: ${data.wifi ? 'активен' : 'выключен'}\n` +
+                `Скорость: ${data.telemetry.speed_rpm.toFixed(0)} RPM\n` +
+                `Ток: ${data.telemetry.current_a.toFixed(1)} А\n` +
+                `Температура: ${data.telemetry.temperature_c.toFixed(1)} °C`;
+            for (const key of Object.keys(data.config)) {
+                const el = document.getElementById(key);
+                if (el) {
+                    if (el.type === 'checkbox') {
+                        el.checked = data.config[key];
+                    } else {
+                        el.value = data.config[key];
+                    }
+                }
+            }
+        }
+
+        async function sendCommand(action) {
+            await fetch('/api/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            refresh();
+        }
+
+        async function saveConfig(ev) {
+            ev.preventDefault();
+            const payload = {};
+            ['target_rpm','ramp_up_ms','ramp_down_ms','high_load_current_a','low_load_current_a','load_drop_delay_ms','settle_delay_ms']
+                .forEach(key => payload[key] = parseFloat(document.getElementById(key).value));
+            payload.logging_enabled = document.getElementById('logging_enabled').checked;
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            refresh();
+        }
+
+        async function toggleLogging(el) {
+            await fetch('/api/logging', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: el.checked })
+            });
+            refresh();
+        }
+
+        setInterval(refresh, 1500);
+        refresh();
+    </script>
+</body>
+</html>
